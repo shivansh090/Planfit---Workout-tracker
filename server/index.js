@@ -12,6 +12,8 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Specify allowed methods
   credentials: true, // If sending cookies or tokens
 }));
+app.options('*', cors());  // Respond to preflights
+
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true })); // for form data
 
