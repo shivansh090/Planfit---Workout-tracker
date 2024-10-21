@@ -17,18 +17,23 @@ const WorkoutSchema = new mongoose.Schema(
     },
     sets: {
       type: Number,
+      default: 0, // Default to 0 to make it easier to add
     },
     reps: {
       type: Number,
+      default: 0,
     },
     weight: {
       type: Number,
+      default: 0,
     },
     duration: {
       type: Number,
+      default: 0,
     },
     caloriesBurned: {
       type: Number,
+      default: 0,
     },
     date: {
       type: Date,
@@ -37,5 +42,8 @@ const WorkoutSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Unique index to prevent duplicate workoutName on the same date for the same user
+WorkoutSchema.index({ user: 1, workoutName: 1, date: 1 }, { unique: true });
 
 export default mongoose.model("Workout", WorkoutSchema);

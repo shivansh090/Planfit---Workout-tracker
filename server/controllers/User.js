@@ -10,6 +10,7 @@ dotenv.config();
 export const UserRegister = async (req, res, next) => {
   try {
     const { email, password, name, img } = req.body;
+    
     console.log("email",email);
     // Check if the email is in use
     const existingUser = await User.findOne({ email }).exec();
@@ -225,9 +226,8 @@ export const addWorkout = async (req, res, next) => {
     if (!workoutString) {
       return next(createError(400, "Workout string is missing"));
     }
-    // Split workoutString into lines
+
     const eachworkout = workoutString.split(";").map((line) => line.trim());
-    // Check if any workouts start with "#" to indicate categories
     const categories = eachworkout.filter((line) => line.startsWith("#"));
     if (categories.length === 0) {
       return next(createError(400, "No categories found in workout string"));
@@ -237,42 +237,53 @@ export const addWorkout = async (req, res, next) => {
     let currentCategory = "";
     let count = 0;
 
-    // Loop through each line to parse workout details
-    await eachworkout.forEach((line) => {
+    await eachworkout.forEach(async (line) => {
       count++;
       if (line.startsWith("#")) {
         const parts = line?.split("\n").map((part) => part.trim());
-        console.log(parts);
         if (parts.length < 5) {
-          return next(
-            createError(400, `Workout string is missing for ${count}th workout`)
-          );
+          return next(createError(400, `Workout string is missing for ${count}th workout`));
         }
 
-        // Update current category
         currentCategory = parts[0].substring(1).trim();
-        // Extract workout details
         const workoutDetails = parseWorkoutLine(parts);
-        if (workoutDetails == null) {
-          return next(createError(400, "Please enter in proper format "));
+        if (!workoutDetails) {
+          return next(createError(400, "Please enter in proper format"));
         }
 
-        if (workoutDetails) {
-          // Add category to workout details
-          workoutDetails.category = currentCategory;
-          parsedWorkouts.push(workoutDetails);
+        workoutDetails.category = currentCategory;
+
+        // Check if a workout with the same workoutName and date already exists
+        const existingWorkout = await Workout.findOne({
+          user: userId,
+          workoutName: workoutDetails.workoutName,
+          date: {
+            $gte: new Date().setHours(0, 0, 0, 0), // Use today's date without time
+            $lt: new Date().setHours(23, 59, 59, 999), // End of today's date
+          },
+        });
+
+        if (existingWorkout) {
+          // Update existing workout: add new sets, reps, weight, and duration
+          existingWorkout.sets += workoutDetails.sets || 0;
+          existingWorkout.reps += workoutDetails.reps || 0;
+          existingWorkout.weight += workoutDetails.weight || 0;
+          existingWorkout.duration += workoutDetails.duration || 0;
+          existingWorkout.caloriesBurned = parseFloat(
+            calculateCaloriesBurnt(existingWorkout)
+          );
+
+          await existingWorkout.save();
+        } else {
+          // No existing workout, create a new one
+          workoutDetails.caloriesBurned = parseFloat(calculateCaloriesBurnt(workoutDetails));
+          await Workout.create({ ...workoutDetails, user: userId });
         }
+
+        parsedWorkouts.push(workoutDetails);
       } else {
-        return next(
-          createError(400, `Workout string is missing for ${count}th workout`)
-        );
+        return next(createError(400, `Workout string is missing for ${count}th workout`));
       }
-    });
-
-    // Calculate calories burnt for each workout
-    await parsedWorkouts.forEach(async (workout) => {
-      workout.caloriesBurned = parseFloat(calculateCaloriesBurnt(workout));
-      await Workout.create({ ...workout, user: userId });
     });
 
     return res.status(201).json({
@@ -283,6 +294,7 @@ export const addWorkout = async (req, res, next) => {
     next(err);
   }
 };
+
 
 // Function to parse workout details from a line
 const parseWorkoutLine = (parts) => {
